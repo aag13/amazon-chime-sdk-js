@@ -545,6 +545,20 @@ Resources:
                         "title": "Daily attendees who joined a meeting",
                         "view": "bar"
                     }
+                },
+                {
+                    "type": "log",
+                    "x": 0,
+                    "y": 18,
+                    "width": 24,
+                    "height": 6,
+                    "properties": {
+                        "query": "SOURCE \"${Source}\" | filter name in [\"signalingDropped\"]\n| fields fromMillis(@timestamp) as timestamp,\nconcat(attributes.osName, \" \", attributes.osVersion) as operatingSystem,\nconcat(attributes.browserName, \" \", attributes.browserMajorVersion) as browser,\nattributes.meetingStatus as failedStatus,\nattributes.meetingErrorMessage as reason,\nconcat(attributes.signalingOpenDurationMs / 1000, \"s\")  as signalingOpenDurationMs,\nattributes.retryCount as retryCount\n| sort @timestamp desc\n",
+                        "region": "us-east-1",
+                        "stacked": false,
+                        "title": "SignalingDropped counts",
+                        "view": "table"
+                    }
                 }
             ]
           }
