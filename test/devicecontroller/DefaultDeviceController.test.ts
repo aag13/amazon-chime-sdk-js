@@ -2262,7 +2262,7 @@ describe('DefaultDeviceController', () => {
     });
   });
 
-  describe('preview', () => {
+  describe.only('preview', () => {
     let element: HTMLVideoElement;
 
     beforeEach(() => {
@@ -2270,15 +2270,82 @@ describe('DefaultDeviceController', () => {
       element = videoElementFactory.create();
     });
 
-    it('connects the video stream to the video element', async () => {
+    it.only(
+      'connects the transform video stream to the video element if there is a transform device stream',
+      async () => {
+        const spy1 = sinon.spy(DefaultVideoTile, 'disconnectVideoStreamFromVideoElement');
+        const spy2 = sinon.spy(DefaultVideoTile, 'connectVideoStreamToVideoElement');
+        const gUM = sinon.spy(navigator.mediaDevices, 'getUserMedia');
+        await deviceController.chooseVideoInputDevice(stringDeviceId);
+        audioVideoController = new NoOpAudioVideoController();
+        const processor = new NoOpVideoFrameProcessor();
+        // The value of device id in the DefaultVideoTransformDevice method call should be 'test' which
+        // is equal to the device id of the intrinsic stream. This is implemented in the isMediaStreamReusableByDeviceId.
+        // By making the device the unit test ensures that the video stream will be reused to mimic real behavior.
+        const device = new DefaultVideoTransformDevice(logger, 'test', [processor]);
+        domMockBehavior.createElementCaptureStream = new MediaStream();
+        await deviceController.chooseVideoInputDevice(device);
+        device.outputMediaStream.addTrack(new MediaStreamTrack());
+        // element.srcObject = device.outputMediaStream;
+        deviceController.startVideoPreviewForVideoInput(element);
+
+        const videoTransformStream = await gUM.returnValues.pop();
+
+        console.log(videoTransformStream.id);
+        expect(spy1.calledOnce).to.be.true;
+        expect(spy2.calledOnce).to.be.true;
+        expect(gUM.calledOnce).to.be.true;
+        spy1.restore();
+        spy2.restore();
+        gUM.restore();
+      }
+    ).timeout(100000);
+
+    it('connects the active device video stream to the video element if there is no transform device stream', async () => {
       const spy1 = sinon.spy(DefaultVideoTile, 'disconnectVideoStreamFromVideoElement');
       const spy2 = sinon.spy(DefaultVideoTile, 'connectVideoStreamToVideoElement');
       const gUM = sinon.spy(navigator.mediaDevices, 'getUserMedia');
       await deviceController.chooseVideoInputDevice(stringDeviceId);
+
+      deviceController.startVideoPreviewForVideoInput(element);
+
+      gUM.returnValues.pop();
+      expect(spy1.calledOnce).to.be.true;
+      expect(spy2.calledOnce).to.be.true;
+      expect(gUM.calledOnce).to.be.true;
+      spy1.restore();
+      spy2.restore();
+      gUM.restore();
+    });
+
+    it('disconnects and releases the video stream if the video element stream is different from the active video stream', async () => {
+      await deviceController.chooseVideoInputDevice(stringDeviceId);
+      deviceController.startVideoPreviewForVideoInput(element);
+
+      const newStringDeviceId = 'device-id-with-transformation';
+      const spy1 = sinon.spy(deviceController, 'releaseMediaStream');
+      const spy2 = sinon.spy(DefaultVideoTile, 'disconnectVideoStreamFromVideoElement');
+      const gUM = sinon.spy(navigator.mediaDevices, 'getUserMedia');
+      await deviceController.chooseVideoInputDevice(newStringDeviceId);
       deviceController.startVideoPreviewForVideoInput(element);
       expect(spy1.calledOnce).to.be.true;
       expect(spy2.calledOnce).to.be.true;
       expect(gUM.calledOnce).to.be.true;
+      spy1.restore();
+      spy2.restore();
+      gUM.restore();
+    });
+
+    it('does not disconnect and release the video stream if the video element stream is same as the active video stream', async () => {
+      await deviceController.chooseVideoInputDevice(stringDeviceId);
+      deviceController.startVideoPreviewForVideoInput(element);
+      const spy1 = sinon.spy(deviceController, 'releaseMediaStream');
+      const spy2 = sinon.spy(DefaultVideoTile, 'disconnectVideoStreamFromVideoElement');
+      const gUM = sinon.spy(navigator.mediaDevices, 'getUserMedia');
+      await deviceController.chooseVideoInputDevice(stringDeviceId);
+      deviceController.startVideoPreviewForVideoInput(element);
+      expect(spy1.called).to.be.false;
+      expect(spy2.called).to.be.false;
       spy1.restore();
       spy2.restore();
       gUM.restore();
